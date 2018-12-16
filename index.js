@@ -1,78 +1,88 @@
+const { handlers } = require("./lib/handlers");
 
 var http = require('http');
-
 var url = require('url');
+var helpers = require('./lib/helpers')
+var StringDecoder = require('string_decoder').StringDecoder;
 
-var server = http.createServer((req,res)=>{
+var server = http.createServer((req, res) => {
 
-   //parse the passe url
-   var urlParsed = url.parse(req.url,true);
-   
-   // path from url
-   var path = urlParsed.path;
-   
-   // it is necessary to replace any slash at the end to avoid sensitivity to way it is written
-   var trimmedPath = path.replace(/^\/+|\/+$/g,'');
-   
-   // routing based on path from url
-   var chosenHandler = typeof(router[trimmedPath])!=='undefined'? router[trimmedPath] : handlers.notFound ;
+  ////
+  // Decoding start
+  ////
 
-   // the http metho
-   var method = req.method.toLowerCase();
+  //parse the passe url
+  var urlParsed = url.parse(req.url, true);
 
-   var data = {
-     'path' : path ,
-     'trimmedPath': trimmedPath,
-     'method' : method
+  // path from url
+  var path = urlParsed.pathname;
 
-   };
+  // query string
+  var queryStringObject = urlParsed.query;
 
-   chosenHandler(data, function callback(statusCode,payload){
-          
-	statusCode = typeof(statusCode) == 'number' ? statusCode : 200;
-	
-	payload = typeof(payload) == 'object' ? payload : {};
+  //Get the headers as an object
+  var headers = req.headers;
+  // the http method
+  var method = req.method.toLowerCase();
+  
+  // it is necessary to replace any slash at the end to avoid sensitivity to way it is written
+  var trimmedPath = path.replace(/^\/+|\/+$/g,'');
 
-	var payloadString = JSON.stringify(payload); 
+  console.log('Request received on path: '+trimmedPath+' with method: '+method+' and this query string: ',queryStringObject);
 
-        // write the response  
-        res.setHeader('Content-Type','application/json');      
-        res.writeHead(statusCode);
-        res.end(payloadString); 	      
+  // Get the payload,if any
+  var decoder = new StringDecoder('utf-8');
+  var buffer = '';
 
- 
-   }); 
-   
+  req.on('data', function (data) {
+    buffer += decoder.write(data);
+  });
+
+  req.on('end', function () {
+
+    buffer += decoder.end();
+
+    ////
+    // Decoding end
+    ////
+
+    var context = {
+      'path': path,
+      'trimmedPath': trimmedPath,
+      'method': method,
+      'headers' : headers,
+      'payload': helpers.parseJsonToObject(buffer),
+      'queryString' : queryStringObject
+    };
+
+    // routing based on path from url
+    let chosenHandler = typeof (router[trimmedPath]) !== 'undefined' ? router[trimmedPath] : handlers.notFound;
+
+    chosenHandler(context, function httpResponse(statusCode, payload) {
+
+      statusCode = typeof (statusCode) == 'number' ? statusCode : 200;
+
+      payload = typeof (payload) == 'object' ? payload : {};
+
+      var payloadString = JSON.stringify(payload);
+
+      // write the response  
+      res.setHeader('Content-Type', 'application/json');
+      res.writeHead(statusCode);
+      res.end(payloadString);
+
+    });
+
+  });
 
 });
-
-
-var handlers = {};
-
-handlers.hello = function(data,callback){
-
-  if(data.method == 'post'){
-  	callback(406,{'result':'Welcome to the API!'});
-  }
-  else {
-  	callback(404,{'result':'failed!'})
-  } 
-};
-
-
-handlers.notFound = function(data,callback){
-
-
-  callback(404,{'result':'failed!'})
-
-};
-
 
 var router = {
-'hello' : handlers.hello
-} 
+  'user': handlers.user,
+  'tokens':handlers.tokens,
+  'pizzaList':handlers.pizzaList
+}
 
-server.listen(8000,function(){
-   console.log('Well Done!!');
+server.listen(8000, function () {
+  console.log('Well Done!!');
 });
-
