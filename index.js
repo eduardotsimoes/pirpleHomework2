@@ -73,7 +73,8 @@ var router = {
   'user': handlers.user,
   'tokens': handlers.tokens,
   'pizzaList': handlers.pizzaList,
-  'cart': handlers.cart
+  'cart': handlers.cart,
+  'orders': handlers.orders
 }
 
 server.listen(8000, function () {
